@@ -8,22 +8,22 @@ from bidi.algorithm import get_display
 
 class ShelfLabelGenerator:
     def __init__(self):
-        # Fixed dimensions in pixels
+        # Fixed dimensions in pixels (matching CSS)
         self.WIDTH = 992
         self.HEIGHT = 508
 
-        # Colors in RGB (converted from CMYK)
-        self.DARK_BG = (26, 26, 26)  # RGB equivalent of CMYK(0%, 0%, 0%, 95%)
-        self.GOLD_COLOR = (184, 153, 113)  # RGB equivalent of CMYK(20%, 30%, 50%, 0%)
+        # Colors in RGB (matching CSS)
+        self.DARK_BG = (26, 26, 26)  # CSS: #1a1a1a
+        self.GOLD_COLOR = (206, 175, 136)  # CSS: #ceaf88
 
         # Font color for price and tax (black)
-        self.PRICE_TAX_COLOR = (26, 26, 26)  # RGB equivalent of CMYK(0%, 0%, 0%, 95%)
+        self.PRICE_TAX_COLOR = (26, 26, 26)  # CSS: #1a1a1a
         # Font color for product name (gold)
-        self.PRODUCT_NAME_COLOR = (184, 153, 113)  # RGB equivalent of CMYK(20%, 30%, 50%, 0%)
+        self.PRODUCT_NAME_COLOR = (206, 175, 136)  # CSS: #ceaf88
 
-        # Gold area dimensions (left side)
-        self.GOLD_AREA_WIDTH = int(self.WIDTH * 0.4)  # 40% of total width
-        self.GOLD_AREA_HEIGHT = self.HEIGHT
+        # Gold area dimensions (left side) (matching CSS)
+        self.GOLD_AREA_WIDTH = 472
+        self.GOLD_AREA_HEIGHT = 289
 
         # Setup logging and directories
         self._setup_logging()
@@ -46,14 +46,15 @@ class ShelfLabelGenerator:
 
     def _load_fonts(self):
         try:
-            font_path = os.path.join(self.fonts_dir, "Peyda-Bold.ttf")
+            font_path = os.path.join(self.fonts_dir, "PeydaFaNum-Bold.ttf")
             if not os.path.exists(font_path):
                 raise FileNotFoundError(f"Font file not found: {font_path}")
 
             self.fonts = {
-                'product_name': ImageFont.truetype(font_path, 72),
-                'price': ImageFont.truetype(font_path, 64),
-                'tax': ImageFont.truetype(font_path, 36)
+                'product_name': ImageFont.truetype(font_path, 60),  # Matching CSS: 70px
+                'price': ImageFont.truetype(font_path, 60),  # Matching CSS: 60px
+                'plus': ImageFont.truetype(font_path, 50),  # Matching CSS: 50px
+                'tax': ImageFont.truetype(font_path, 30),  # Matching CSS: 30px
             }
         except Exception as e:
             self.logger.error(f"Font loading error: {str(e)}")
@@ -66,55 +67,51 @@ class ShelfLabelGenerator:
 
     def create_label(self, product_name: str, price: float) -> Image.Image:
         try:
-            # Create new image in RGB mode
+            # Create new image in RGB mode with the dark background
             image = Image.new('RGB', (self.WIDTH, self.HEIGHT), self.DARK_BG)
             draw = ImageDraw.Draw(image)
 
             # Draw gold area on the left
             gold_area = Image.new('RGB', (self.GOLD_AREA_WIDTH, self.GOLD_AREA_HEIGHT), self.GOLD_COLOR)
-            image.paste(gold_area, (0, 0))
+            image.paste(gold_area, (0, int((self.HEIGHT - self.GOLD_AREA_HEIGHT) / 2)))
 
-            # Calculate the width of the product name area (right side)
-            product_area_width = self.WIDTH - self.GOLD_AREA_WIDTH - 40  # Padding on the right
+            # Draw the price in the gold area (using reshaped text)
+            price_text = f"{int(price):,} تومان"
+            prepared_price_text = self.prepare_persian_text(price_text)  # Prepare price text
+            self.draw_text_centered(draw, prepared_price_text, (236, 164), self.fonts['price'], self.PRICE_TAX_COLOR)
 
-            # Draw product name in the right area
+            # Define the width for the product name area
+            product_area_width = self.WIDTH - self.GOLD_AREA_WIDTH - 40  # Update this line
+
+            # Draw the product name with multiline support
             self.draw_multiline_text(
                 draw, product_name,
-                self.GOLD_AREA_WIDTH + 40, 100,  # Position it with some padding
+                self.GOLD_AREA_WIDTH + 40, (self.HEIGHT - 40) // 2,  # Centered vertically
                 self.fonts['product_name'], self.PRODUCT_NAME_COLOR,
                 product_area_width, self.HEIGHT - 40
             )
 
-            # Draw price in the gold area
-            price_text = f"{int(price):,} تومان"
-            self.draw_multiline_text(
-                draw, price_text,
-                40, 40,  # Padding from top and left
-                self.fonts['price'], self.PRICE_TAX_COLOR,
-                self.GOLD_AREA_WIDTH, 200
-            )
-
-            # Draw tax information below the price in the gold area
-            tax_text = "+\n۱۰٪ مالیات ارزش افزوده"
-            self.draw_multiline_text(
-                draw, tax_text,
-                40, 200,  # Position under the price
-                self.fonts['tax'], self.PRICE_TAX_COLOR,
-                self.GOLD_AREA_WIDTH, 120
-            )
+            # Draw plus sign and tax info (using reshaped text)
+            prepared_tax_text = self.prepare_persian_text("10% مالیات ارزش افزوده")
+            self.draw_text_centered(draw, "+", (236, 224), self.fonts['plus'], self.PRICE_TAX_COLOR)
+            self.draw_text_centered(draw, prepared_tax_text, (236, 294), self.fonts['tax'], self.PRICE_TAX_COLOR)
 
             return image
 
         except Exception as e:
             self.logger.error(f"Label creation error: {str(e)}")
-            return None
+        return None
 
-    def draw_multiline_text(self, draw: ImageDraw, text: str, x: int, y: int, 
+    def draw_multiline_text(self, draw: ImageDraw, text: str, x: int, y: int,
                             font: ImageFont, fill: tuple, max_width: int, max_height: int) -> int:
-        """Draw text that wraps if it exceeds max width."""
-        words = text.split()
+        """Draw text that wraps if it exceeds max width or has more than 3 words per line."""
+
+        words = text.split()  # Split the text into words
         lines = []
         current_line = []
+
+        # Reduce the max_width by 50px for the right margin
+        max_width -= 50
 
         for word in words:
             current_line.append(word)
@@ -122,35 +119,47 @@ class ShelfLabelGenerator:
             prepared_test = self.prepare_persian_text(test_line)
             width = draw.textlength(prepared_test, font=font)
 
-            if width > max_width:
+            # Wrap the line if it's too wide or has more than 3 words
+            if width > max_width or len(current_line) > 3:
                 if len(current_line) > 1:
-                    current_line.pop()
+                    current_line.pop()  # Remove the last word to wrap it on the next line
                 lines.append(' '.join(current_line))
                 current_line = [word]
-            else:
-                lines.append(test_line)
-                current_line = []
 
+        # Add the last line
+        if current_line:
+            lines.append(' '.join(current_line))
+
+        # Calculate total height of all lines
         total_height = 0
-        current_y = y
+        line_heights = []
 
         for line in lines:
             prepared_line = self.prepare_persian_text(line)
-            bbox = draw.textbbox((0, 0), prepared_line, font=font)
-            line_height = bbox[3] - bbox[1]
+            line_bbox = draw.textbbox((0, 0), prepared_line, font=font)
+            line_height = line_bbox[3] - line_bbox[1]
+            line_heights.append(line_height)
+            total_height += line_height
 
-            if total_height + line_height > max_height:
-                break
+        # Start drawing each line from the calculated y position
+        current_y = y - total_height // 2  # Centering in Y-axis
 
+        for i, line in enumerate(lines):
+            prepared_line = self.prepare_persian_text(line)
             width = draw.textlength(prepared_line, font=font)
-            x_centered = x + (max_width - width) // 2
+            x_centered = x + (max_width - width) // 2  # Centering in X-axis
             draw.text((x_centered, current_y), prepared_line, font=font, fill=fill)
 
-            current_y += line_height
-            total_height += line_height
+            current_y += line_heights[i]  # Move to the next line's y position
 
         return total_height
 
+    def draw_text_centered(self, draw: ImageDraw, text: str, position: tuple, font: ImageFont, fill: tuple):
+        """Draw centered text at the specified position."""
+        text_width = draw.textlength(text, font=font)
+        x = position[0] - text_width // 2
+        y = position[1] - (font.getbbox(text)[3] - font.getbbox(text)[1]) // 2
+        draw.text((x, y), text, font=font, fill=fill)
 
     def generate_labels_from_excel(self, excel_path: str):
         """Generate labels from Excel file and save images."""
@@ -199,7 +208,7 @@ def main():
 
         print("\n=== Label Generator Started ===\n")
         print("Requirements:")
-        print("1. Persian font (Peyda-Bold.ttf) in 'fonts' folder")
+        print("1. Persian font (PeydaFaNum-Bold.ttf) in 'fonts' folder")
         print("2. Excel file (product_list.xlsx) with columns:")
         print(" - 'نام محصول' (Product Name)")
         print(" - 'قیمت' (Price)")
