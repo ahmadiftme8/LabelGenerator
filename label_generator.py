@@ -1,5 +1,11 @@
+import pandas as pd
+from PIL import Image, ImageDraw, ImageFont
+import os
+import re
+import logging
+import arabic_reshaper
+from bidi.algorithm import get_display
 
-<<<<<<< HEAD
 # همه شعب
 
 class ShelfLabelGenerator:
@@ -56,7 +62,6 @@ class ShelfLabelGenerator:
         """Load required fonts"""
         try:
             font_path = os.path.join(self.fonts_dir, "PeydaFaNum-Bold.ttf")
-            font_path = os.path.join(self.fonts_dir, "PeydaFaNum-Bold.ttf")
             if not os.path.exists(font_path):
                 raise FileNotFoundError(f"Font file not found: {font_path}")
 
@@ -80,7 +85,6 @@ class ShelfLabelGenerator:
             # Draw gold area on the left (fixed position, no margin)
             gold_area = Image.new('RGB', (self.GOLD_AREA_WIDTH, self.GOLD_AREA_HEIGHT), self.GOLD_COLOR)
             image.paste(gold_area, (0, int((self.HEIGHT - self.GOLD_AREA_HEIGHT) / 2)))
-            image.paste(gold_area, (0, int((self.HEIGHT - self.GOLD_AREA_HEIGHT) / 2)))
 
             # Draw the price in the gold area (with left margin)
             price_text = f"{int(price):,} تومان"
@@ -93,7 +97,6 @@ class ShelfLabelGenerator:
             # Product name area (starts after gold area plus product name left margin, ends before right margin)
             product_area_width = self.WIDTH - self.GOLD_AREA_WIDTH - self.PRODUCT_NAME_LEFT_MARGIN - self.INNER_TEXT_MARGIN - 10
 
-            # Draw the product name with multiline support
             # Draw the product name with multiline support
             self.draw_multiline_text(
                 draw, product_name,
@@ -115,7 +118,7 @@ class ShelfLabelGenerator:
 
         except Exception as e:
             self.logger.error(f"Label creation error: {str(e)}")
-        return None
+            return None
 
     def draw_multiline_text(self, draw: ImageDraw, text: str, x: int, y: int,
                         font: ImageFont, fill: tuple, max_width: int, max_height: int) -> int:
@@ -123,9 +126,6 @@ class ShelfLabelGenerator:
         words = text.split()
         lines = []
         current_line = []
-
-        # Reduce the max_width by 50px for the right margin
-        max_width -= 50
 
         for word in words:
             current_line.append(word)
@@ -135,7 +135,7 @@ class ShelfLabelGenerator:
 
             if width > max_width or len(current_line) > 3:
                 if len(current_line) > 1:
-                    current_line.pop()  # Remove the last word to wrap it on the next line
+                    current_line.pop()
                 lines.append(' '.join(current_line))
                 current_line = [word]
 
@@ -144,7 +144,6 @@ class ShelfLabelGenerator:
 
         line_spacing = 24  # Increased for higher resolution
         total_height = 0
-        line_heights = []
         line_heights = []
 
         for line in lines:
@@ -160,7 +159,7 @@ class ShelfLabelGenerator:
         for i, line in enumerate(lines):
             prepared_line = self.prepare_persian_text(line)
             width = draw.textlength(prepared_line, font=font)
-            x_centered = x + (max_width - width) // 2  # Centering in X-axis
+            x_centered = x + (max_width - width) // 2
             draw.text((x_centered, current_y), prepared_line, font=font, fill=fill)
             current_y += line_heights[i] + line_spacing
 
@@ -237,7 +236,6 @@ def main():
         print("\n=== Label Generator Started ===\n")
         print("Requirements:")
         print("1. Persian font (PeydaFaNum-Bold.ttf) in 'fonts' folder")
-        print("1. Persian font (PeydaFaNum-Bold.ttf) in 'fonts' folder")
         print("2. Excel file (product_list.xlsx) with columns:")
         print("   - 'نام محصول' (Product Name)")
         print("   - 'قیمت' (Price)")
@@ -262,5 +260,3 @@ if __name__ == "__main__":
     main()
 
 
-=======
->>>>>>> f63d9b55e85610a5a30b4549eb29333df881815c
