@@ -1,11 +1,5 @@
-import pandas as pd
-from PIL import Image, ImageDraw, ImageFont
-import os
-import re
-import logging
-import arabic_reshaper
-from bidi.algorithm import get_display
 
+<<<<<<< HEAD
 # همه شعب
 
 class ShelfLabelGenerator:
@@ -268,3 +262,5 @@ if __name__ == "__main__":
     main()
 
 
+=======
+>>>>>>> f63d9b55e85610a5a30b4549eb29333df881815c
